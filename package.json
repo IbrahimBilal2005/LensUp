@@ -1,0 +1,12 @@
+{
+  "name": "lensup-prototype",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node verify.mjs",
+    "dev": "node preview.mjs",
+    "start": "node preview.mjs"
+  },
+  "engines": { "node": ">=20" }
+}
