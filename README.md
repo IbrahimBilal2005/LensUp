@@ -18,6 +18,8 @@ Alternatively, create a Render Blueprint from the included `render.yaml`. Config
 
 The deployed root URL opens the updated prototype and account setup. No query parameters are needed. Browser refresh preserves the current screen. No backend, environment variables, or start command is needed on Render.
 
+Demo accounts, practice, modules, posts and follows are saved in this browser’s local storage. Create an account with invented demo credentials, then use the app header’s avatar menu to sign out and sign back in. Accounts on different browsers/devices are independent. Reset demo clears all accounts and activity on the current browser. This is prototype sign-in, not a backend authentication service.
+
 If you upload the **whole coursework workspace** instead, set Root Directory to `prototype`. The recommended approach is uploading only this folder's contents.
 
 ## Local preview
