@@ -8,7 +8,7 @@ const routes = [
  ['signup','Account setup','onboarding'],['tour-practice','Tour · Practice','onboarding'],['tour-learn','Tour · Learn','onboarding'],['tour-feedback','Tour · Feedback','onboarding'],
  ['welcome','Welcome','onboarding'],['home','Home','main'],['source','Starting photo','main'],['goal','Set a goal','main'],['ideas','AI suggestions','main'],['capture','Try the adjustment','main'],['compare','Compare & reflect','main'],['alternatives','Try a different experiment','main'],['newideas','New AI suggestions','main'],['tree','Practice tree','main'],['saved','Saved practice','main'],
  ['assessment','Upload collection','modules'],['modules','Skill modules','modules'],['module-detail','Module challenges','modules'],['lesson','Lighting challenge','modules'],['results','Challenge results','modules'],
- ['community','Community critique','community'],['peer-discussion','Community discussion','community'],['post','Ask for advice','community'],['critique','Photo feedback','community'],['carousel','Critique carousel','community'],['experiments','My experiments','main'],['progress','My progress','progress'],['history','Skill history','progress'],['achievements','Achievements','progress']
+ ['community','Community critique','community'],['peer-discussion','Community discussion','community'],['post','Ask for advice','community'],['critique','Photo feedback','community'],['carousel','Critique carousel','community'],['experiments','My experiments','main'],['progress','My progress','progress'],['history','Compare my practice','progress'],['achievements','Achievements','progress']
 ];
 const evidence = {
  signup:['A simple introduction','A1 DR2–DR4; A2 §1.4.','Minimal local account setup introduces the learner without requiring an assessment or changing the existing practice flow.'],
@@ -154,7 +154,7 @@ function action(a){const [type,...rest]=a.split(':');const value=rest.join(':');
  if(state.modal){setTimeout(()=>$('.modal button, .modal input')?.focus(),0)}save();}
 document.addEventListener('click',e=>{const target=e.target.closest('[data-action]');if(target){e.preventDefault();action(target.dataset.action)}});
 document.addEventListener('input',e=>{if(e.target.tagName==='TEXTAREA')growTextarea(e.target);if(e.target.name){if(e.target.name==='accountPassword'){accountPassword=e.target.value;return;}state[e.target.name]=e.target.type==='checkbox'?e.target.checked:e.target.value;if(e.target.name==='reflection'){const a=state.attempts.find(a=>a.id===state.selectedNode);if(a)a.reflection=state.reflection;}if(['experienceRating','settingsExperience'].includes(e.target.name)){const level=experienceLevels[Number(e.target.value)];e.target.setAttribute('aria-valuetext',level);const output=e.target.closest('label')?.querySelector('output');if(output)output.textContent=level;}if(e.target.name==='guideExposure'){const preview=document.querySelector('.guide-photo img');if(preview)preview.style.filter=`brightness(${Math.pow(2,+e.target.value*.5)})`;}save()}});
-document.addEventListener('change',e=>{if(e.target.name?.startsWith('historyPick:')){const [,skill,side]=e.target.name.split(':');state.historySelections=state.historySelections||{};state.historySelections[skill]={...state.historySelections[skill],[side]:e.target.value};save();render();}if(e.target.name==='baselineGoal'){state.goal=e.target.value;save()}});
+document.addEventListener('change',e=>{if(e.target.name?.startsWith('historyPick:')){const [,skill,side]=e.target.name.split(':');setHistoryChoice(skill,side,e.target.value);}if(e.target.name==='baselineGoal'){state.goal=e.target.value;save()}});
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&state.modal){state.pendingDeletePostId=null;state.modal=null;renderPreservingScroll()}if(e.key==='Tab'&&state.modal){const items=[...document.querySelectorAll('.modal button,.modal input,.modal textarea,.modal select')];const first=items[0],last=items.at(-1);if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus()}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus()}}});
 // Sessions keep their own photograph tree, intention and resume location.
 const practiceFields=['comparisonFrom','suggestionsFrom','sourceKind','goal','intent','idea','parent','attempts','saved','conditions','reflection','selectedNode','newSubject','human','retry','retryTarget','selectedFeedback'];
@@ -476,11 +476,11 @@ function revisedAction(type,value) {
     case 'confirm-capture': {
       if(state.initialCapture)return false;
       if(state.module){if(!stepUnlocked(state.moduleSkill,state.challenge)){state.modal=null;renderAndSave();toast('Complete the previous challenge first.');return true;}const done=completedSteps();state.moduleProgress[state.moduleSkill]=[...new Set([...done,state.challenge])].sort();navigate('results');return true;}
-      if(state.retry){const a=attemptById(state.retryTarget);if(a&&canRetake(a)){a.zoom=!!state.cameraZoom;a.captureId=state.captureCounter;a.sequence=state.captureSequence;a.conditions=captureConditions();a.reflection='';delete a.retries;state.selectedNode=a.id;}state.retry=false;state.retryTarget=null;navigate('compare');toast('Photo replaced in this experiment.');return true;}
+      if(state.retry){const a=attemptById(state.retryTarget);if(a&&canRetake(a)){a.zoom=!!state.cameraZoom;a.captureId=state.captureCounter;a.capturedAt=state.captureTime;a.sequence=state.captureSequence;a.conditions=captureConditions();a.reflection='';delete a.retries;state.selectedNode=a.id;}state.retry=false;state.retryTarget=null;navigate('compare');toast('Photo replaced in this experiment.');return true;}
       if(!state.human&&depthOf(state.parent)>=3){state.modal=null;renderAndSave();toast('This path is complete. Select an earlier photo in the tree.');return true;}
       if(!state.human){const old=existingSuggestion(state.parent,state.idea);if(old){openComparison(old.id,'ideas');return true;}}
       const next=state.attempts.reduce((n,a)=>Math.max(n,a.id.charCodeAt(0)),65)+1;
-      const a={zoom:!!state.cameraZoom,sequence:state.captureSequence,skill:['Lighting','Composition','Framing'][state.idea],id:String.fromCharCode(next),parent:state.parent,idea:state.idea,human:!!state.human,communityPostId:state.human?(state.selectedFeedback?.postId||state.activeCommunityPostId):null,feedbackOn:state.human?state.parent:null,feedbackAuthor:state.human?state.selectedFeedback?.author:null,feedbackId:state.human?state.selectedFeedback?.id:null,feedbackText:state.human?state.selectedFeedback?.body:null,adjustments:[...(attemptById(state.parent)?.adjustments||[]),state.idea],conditions:captureConditions(),reflection:'',retries:[]};
+      const a={capturedAt:state.captureTime,zoom:!!state.cameraZoom,sequence:state.captureSequence,skill:['Lighting','Composition','Framing'][state.idea],id:String.fromCharCode(next),parent:state.parent,idea:state.idea,human:!!state.human,communityPostId:state.human?(state.selectedFeedback?.postId||state.activeCommunityPostId):null,feedbackOn:state.human?state.parent:null,feedbackAuthor:state.human?state.selectedFeedback?.author:null,feedbackId:state.human?state.selectedFeedback?.id:null,feedbackText:state.human?state.selectedFeedback?.body:null,adjustments:[...(attemptById(state.parent)?.adjustments||[]),state.idea],conditions:captureConditions(),reflection:'',retries:[]};
       state.attempts.push(a);completePrivateSuggestion(a);state.selectedNode=a.id;expandPath(a.id);
       navigate('compare');return true;
     }
@@ -797,27 +797,50 @@ function historyRecords(skill){
   const snapshot=session.id===state.activePracticeId?{...session.snapshot,attempts:state.attempts}:session.snapshot;
   for(const attempt of snapshot.attempts||[]){
    if((attempt.skill||['Lighting','Composition','Framing'][attempt.idea])!==skill)continue;
-   records.push({key:session.id+'-'+attempt.id,label:`Practice ${session.number} · ${branchAttemptLabel(attempt.id,snapshot.attempts||[])}`,variant:variantFor(attempt),conditions:attempt.conditions||'Not recorded',reflection:attempt.reflection||'',intention:snapshot.intent||'',sequence:attempt.sequence||session.number*100+(attempt.id.charCodeAt(0)-65)});
+   records.push({key:session.id+'-'+attempt.id,label:`Practice ${session.number} · ${branchAttemptLabel(attempt.id,snapshot.attempts||[])}`,sourceKind:'experiment',capturedAt:attempt.capturedAt||null,variant:variantFor(attempt),conditions:attempt.conditions||'Not recorded',reflection:attempt.reflection||'',intention:snapshot.intent||'',sequence:attempt.sequence||session.number*100+(attempt.id.charCodeAt(0)-65)});
   }
  }
  for(const attempt of state.moduleAttempts||[])if(attempt.skill===skill)records.push(attempt);
  return records.sort((a,b)=>a.sequence-b.sequence);
 }
+function comparisonSkills(){return [...new Set([...activeModules(),...(state.moduleAttempts||[]).map(record=>record.skill)])];}
+function captureDate(record){
+ const time=Number(record.capturedAt)||(record.sequence>1e13?Math.floor(record.sequence/100):0);
+ return time&&Number.isFinite(time)?new Intl.DateTimeFormat('en-CA',{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'}).format(new Date(time)):'Date not recorded';
+}
 function historySelection(skill,records){
+ if(!records.length)return {};
  const chosen=state.historySelections?.[skill]||{};
- return {earlier:records.find(r=>r.key===chosen.earlier)||records[0],later:records.find(r=>r.key===chosen.later)||records.at(-1)};
+ let earlier=records.find(record=>record.key===chosen.earlier)||records[0],later=records.find(record=>record.key===chosen.later)||records.at(-1);
+ if(earlier.key===later.key&&records.length>1)later=records.find(record=>record.key!==earlier.key);
+ if(records.indexOf(earlier)>records.indexOf(later))[earlier,later]=[later,earlier];
+ return {earlier,later};
+}
+function setHistoryChoice(skill,side,key){
+ if(!['earlier','later'].includes(side))return;
+ const records=historyRecords(skill),record=records.find(record=>record.key===key);if(!record)return;
+ const pair=historySelection(skill,records),other=pair[side==='earlier'?'later':'earlier'];
+ if(other?.key===key){toast('Choose two different photographs.','error');return;}
+ const selected=[record,other].filter(Boolean).sort((a,b)=>records.indexOf(a)-records.indexOf(b));
+ state.historySelections=state.historySelections||{};state.historySelections[skill]={earlier:selected[0].key,later:selected.at(-1).key};
+ save();renderPreservingScroll();
+}
+function comparisonRecord(record,side,records=[],other=null){
+ const conditions=shootingConditionOptions.find(([value])=>value===record.conditions)?.[1]||(record.conditions==='Study sample'?'Sample capture · conditions not recorded':record.conditions||'Conditions not recorded');
+ return `<section class="practice-photo-record">${records.length>1?`<label class="field comparison-photo-select"><span>${side==='earlier'?'Earlier photo':'Later photo'}</span><select name="historyPick:${state.skill||'Lighting'}:${side}" aria-label="Choose ${side} photograph">${records.map(option=>`<option value="${esc(option.key)}" ${record.key===option.key?'selected':''} ${other?.key===option.key?'disabled':''}>${esc(option.label)}</option>`).join('')}</select></label>`:''}${image(record.variant,side==='earlier'?'Earlier photo':side==='later'?'Later photo':record.label)}<div class="practice-record-details"><strong>${esc(record.label)}</strong><time>${esc(captureDate(record))}</time><p class="record-conditions">${esc(conditions)}</p>${record.intention?`<p class="record-intention"><span>Focus</span>${esc(record.intention)}</p>`:''}<div class="record-reflection"><span>Reflection at the time</span><p>${esc(record.reflection||'No reflection recorded.')}</p></div></div></section>`;
 }
 function skillHistoryScreen(){
  const skill=state.skill||'Lighting',records=historyRecords(skill),{earlier,later}=historySelection(skill,records);
- const panel=(record,side)=>`<div><label class="field"><span>${side==='earlier'?'Earlier attempt':'Later attempt'}</span><select name="historyPick:${skill}:${side}">${records.map(r=>`<option value="${r.key}" ${record.key===r.key?'selected':''}>${esc(r.label)}</option>`).join('')}</select></label>${image(record.variant,record.label)}<p class="small muted">${esc(record.conditions)}</p>${record.reflection?`<p class="record-reflection">${esc(record.reflection)}</p>`:''}</div>`;
+ const filters=`<div class="comparison-skill-filter" role="group" aria-label="Skill to compare">${comparisonSkills().map(value=>btn(esc(value),'compare-skill:'+value,'chip '+(value===skill?'selected':''),`aria-pressed="${value===skill}"`)).join('')}</div>`;
  const noteKey=earlier&&later?`historyNote:${skill}:${earlier.key}:${later.key}`:'';
- return `${heading(skill.toUpperCase()+' · PRACTICE HISTORY',skill+' history')}${!records.length?card(`<h3>No recorded ${skill.toLowerCase()} attempts yet.</h3><p>Complete a ${skill.toLowerCase()} experiment or challenge to review it here.</p>`):records.length===1?`${image(earlier.variant,earlier.label)}<p class="small muted">${esc(earlier.conditions)}</p>${earlier.reflection?card(`<p>${esc(earlier.reflection)}</p>`):''}<div class="note"><p>Record another ${skill.toLowerCase()} attempt to compare your choices.</p></div>`:`<div class="comparison history-comparison">${panel(earlier,'earlier')}${panel(later,'later')}</div>${earlier.conditions!==later.conditions?'<div class="note"><p>These attempts have different conditions. Consider the scene as well as your adjustment.</p></div>':''}${field('What changed in your choices?',noteKey,state[noteKey]||'','What would you carry into your next attempt?','textarea')}${btn('Save reflection','save-reflection','secondary')}`}<div class="push">${btn('Practise '+skill,'history-challenge')}</div>`;
+ return `${heading('PROGRESS · LOOK ACROSS YOUR PRACTICE','Compare my<br>practice.')}<div class="comparison-skill-heading"><h2>Choose a skill</h2>${filters}</div>${!records.length?card(`<h3>No recorded ${skill.toLowerCase()} attempts yet.</h3><p>Complete a ${skill.toLowerCase()} experiment or challenge to review it here.</p>`,'comparison-empty'):records.length===1?`${comparisonRecord(earlier,'only')}<p class="comparison-hint">One photo so far. Record another ${skill.toLowerCase()} attempt to compare.</p>`:`<p class="comparison-hint">Choose any two photographs. Earlier stays on the left.</p><div class="comparison history-comparison">${comparisonRecord(earlier,'earlier',records,later)}${comparisonRecord(later,'later',records,earlier)}</div>${earlier.conditions!==later.conditions?'<div class="note comparison-conditions-note"><p>The recorded conditions differ. Consider the scene as well as your technique.</p></div>':''}${field('What changed in your approach?',noteKey,state[noteKey]||'','Consider the subject and conditions.','textarea')}${btn('Save reflection','save-reflection','secondary')}`}<div class="push">${btn('Practise '+skill,'history-challenge')}</div>`;
 }
+
 function recordCapture(){
- state.captureCounter=(state.captureCounter||0)+1;state.captureSequence=Date.now()*100+state.captureCounter%100;
+ state.captureCounter=(state.captureCounter||0)+1;state.captureTime=Date.now();state.captureSequence=state.captureTime*100+state.captureCounter%100;
  if(state.module&&stepUnlocked(state.moduleSkill,state.challenge)){
   state.moduleAttempts=state.moduleAttempts||[];
-  state.moduleAttempts.push({key:'module-'+state.captureCounter,label:`${state.moduleSkill} · Challenge ${state.challenge}`,skill:state.moduleSkill,step:state.challenge,variant:moduleVariant(state.moduleSkill,state.challenge,true),conditions:state.newSubject?'Different subject':'Study sample',reflection:'',sequence:state.captureSequence});
+  state.moduleAttempts.push({key:'module-'+state.captureCounter,label:`${state.moduleSkill} · Challenge ${state.challenge}`,skill:state.moduleSkill,step:state.challenge,capturedAt:state.captureTime,intention:lessonsFor(state.moduleSkill)[state.challenge-1][0],sourceKind:'module',variant:moduleVariant(state.moduleSkill,state.challenge,true)+(state.cameraZoom?' zoom-capture':''),conditions:state.newSubject?'Different subject':'Study sample',reflection:'',sequence:state.captureSequence});
  }
 }
 function materialAction(type,value){
@@ -1054,6 +1077,8 @@ function isFollowing(name){return state.followedPeople?state.followedPeople.incl
 function peerProfileDialog(){const name=state.profilePerson||'Mina Park',posts=communityPosts.filter(p=>p.author===name);return `<div class="modal-backdrop"><section class="modal peer-profile" role="dialog" aria-modal="true" aria-label="Photographer profile"><button class="modal-close" data-action="close" aria-label="Close">×</button><span class="avatar amber">${esc(name.split(' ').map(x=>x[0]).join(''))}</span><h2>${esc(name)}</h2><p>Photography learner</p><p class="small muted">${posts.length} community ${posts.length===1?'post':'posts'}</p>${btn(isFollowing(name)?'Following · Unfollow':'Follow',`follow-person:${name}`,isFollowing(name)?'secondary':'primary')}${posts.map(p=>`${peerPhoto(p)}${btn('View post',`peer-post:${p.id}`,'secondary')}`).join('')}</section></div>`;}
 function polishAction(type,value){
  switch(type){
+ case 'compare-practice':state.moduleFromExperiment=null;state.skill=comparisonSkills().includes(state.skill)?state.skill:'Lighting';navigate('history');return true;
+ case 'compare-skill':if(comparisonSkills().includes(value)){state.skill=value;save();renderPreservingScroll();}return true;
  case 'delete-post':if(state.ownPosts.some(p=>p.id===value)){state.pendingDeletePostId=value;state.modal='delete-post';save();renderPreservingScroll();}return true;
  case 'confirm-delete-post':deleteOwnPost();return true;
  case 'goal-toggle':{const [scope,index]=value.split(':');const key=scope==='settings'?'settingsGoals':'learningGoals',selected=scope==='settings'?(state.settingsGoals||[]):profileGoals(),goal=profileGoalOptions[Number(index)];if(goal){state[key]=selected.includes(goal)?selected.filter(x=>x!==goal):[...selected,goal];save();updateGoalControls(scope,state[key]);}return true;}
@@ -1098,6 +1123,7 @@ function top(route){
  if(['critique','peer-discussion'].includes(route))return `<div class="app-top">${btn('‹ Community','go:community','text-button')}${route==='critique'&&activeOwnPost()?postOptions(activeOwnPost()):''}</div>`;
  const main=['home','modules','community','progress'];
  if(main.includes(route)||route==='assessment'&&!state.learnReady)return `<div class="app-top">${headerLogo()}${accountDropdown()}</div>`;
+ if(route==='history')return `<div class="app-top">${btn('‹ Progress','go:progress','text-button')}${btn('Home','go:home','text-button')}</div>`;
  if(route==='assessment')return `<div class="app-top">${btn('‹ Modules','go:modules','text-button')}</div>`;
  if(route==='compare'){const back=comparisonBack();return `<div class="app-top">${btn('‹ '+back.label,back.action,'text-button')}${btn('Home','practice-home','text-button')}</div>`;}
  if(['source','goal','ideas','capture','tree','compare'].includes(route)){
@@ -1107,7 +1133,7 @@ function top(route){
  return legacyTop(route);
 }
 function viewpointGuide(){return `<p class="eyebrow">TRY A DIFFERENT ANGLE</p><h2>Change what fills the frame.</h2><div class="viewpoint-preview">${image(state.guideAngle?'angle':'original',state.guideAngle?'Less sky · more foreground':'Starting angle')}</div><p>Move your phone to include less sky and more foreground. Keep the cabin visible.</p>${btn(state.guideAngle?'Show starting angle':'Try less sky', 'viewpoint-toggle','secondary')}${btn('Return to practice','close')}`;}
-function progressScreen(){const totals=activityTotals();return `${heading('YOUR EYE IS DEVELOPING','My Progress')}<div class="stats">${[[state.practiceSessions.length,'Experiments'],[totals.attempts,'Photo attempts'],[totals.challenges,'Challenges complete']].map(([n,l])=>`<div><strong>${n}</strong><small>${l}</small></div>`).join('')}</div><section class="progress-section"><div class="row between"><h2>Achievements</h2>${go('View all','achievements','inline')}</div><div class="achievement-summary">${[[totals.attempts,'Attempts'],[totals.challenges,'Challenges'],[totals.posts,'Posts']].map(([n,l])=>`<div><strong>${n}</strong><small>${l}</small></div>`).join('')}</div></section><section class="progress-section"><h2>Experiments</h2>${btn('View my experiments','experiments:progress','secondary')}${pendingPracticeCard()}</section><section class="progress-section"><h2>Skills</h2>${activeModules().map(skill=>`<button class="activity-card" data-action="history:${skill}"><span class="activity-icon">${({Lighting:'☼',Composition:'▣',Framing:'▧',Depth:'▱'})[skill]}</span><span><strong>${skill}</strong><small>${completedSteps(skill).length} of ${moduleLength(skill)} challenges complete</small></span><span>›</span></button>`).join('')}</section>`;}
+function progressScreen(){const totals=activityTotals();return `${heading('YOUR EYE IS DEVELOPING','My Progress')}<div class="stats">${[[state.practiceSessions.length,'Experiments'],[totals.attempts,'Photo attempts'],[totals.challenges,'Challenges complete']].map(([n,l])=>`<div><strong>${n}</strong><small>${l}</small></div>`).join('')}</div><section class="progress-compare-card"><p class="eyebrow">REFLECT ON YOUR PROGRESS</p><h2>See how your<br>approach is changing.</h2><p>Compare photographs across experiments and challenges.</p>${btn('Compare my practice','compare-practice')}</section><section class="progress-section"><div class="row between"><h2>Achievements</h2>${go('View all','achievements','inline')}</div><div class="achievement-summary">${[[totals.attempts,'Attempts'],[totals.challenges,'Challenges'],[totals.posts,'Posts']].map(([n,l])=>`<div><strong>${n}</strong><small>${l}</small></div>`).join('')}</div></section><section class="progress-section"><h2>Experiments</h2>${btn('View my experiments','experiments:progress','secondary')}${pendingPracticeCard()}</section><section class="progress-section"><h2>Skills</h2>${activeModules().map(skill=>`<button class="activity-card" data-action="history:${skill}"><span class="activity-icon">${({Lighting:'☼',Composition:'▣',Framing:'▧',Depth:'▱'})[skill]}</span><span><strong>${skill}</strong><small>${completedSteps(skill).length} of ${moduleLength(skill)} challenges complete</small></span><span>›</span></button>`).join('')}</section>`;}
 function renderPreservingScroll(){
  const viewport=document.querySelector('.phone .screen-content'),top=viewport?.scrollTop||0,left=viewport?.scrollLeft||0;
  const threads=new Map([...document.querySelectorAll('.comment-replies')].map(el=>[el.dataset.threadParent,el.open]));
