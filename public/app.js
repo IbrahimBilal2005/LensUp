@@ -809,31 +809,40 @@ function captureDate(record){
  return time&&Number.isFinite(time)?new Intl.DateTimeFormat('en-CA',{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'}).format(new Date(time)):'Date not recorded';
 }
 function historySelection(skill,records){
- if(!records.length)return {};
- const chosen=state.historySelections?.[skill]||{};
- let earlier=records.find(record=>record.key===chosen.earlier)||records[0],later=records.find(record=>record.key===chosen.later)||records.at(-1);
- if(earlier.key===later.key&&records.length>1)later=records.find(record=>record.key!==earlier.key);
- if(records.indexOf(earlier)>records.indexOf(later))[earlier,later]=[later,earlier];
- return {earlier,later};
+ if(records.length===1)return {earlier:records[0]};
+ const chosen=state.historySelections?.[skill]||{},earlier=records.find(record=>record.key===chosen.earlier);
+ if(!earlier||records.indexOf(earlier)===records.length-1)return {};
+ const later=records.find(record=>record.key===chosen.later);
+ return {earlier,later:later&&records.indexOf(later)>records.indexOf(earlier)?later:undefined};
 }
 function setHistoryChoice(skill,side,key){
- if(!['earlier','later'].includes(side))return;
- const records=historyRecords(skill),record=records.find(record=>record.key===key);if(!record)return;
- const pair=historySelection(skill,records),other=pair[side==='earlier'?'later':'earlier'];
- if(other?.key===key){toast('Choose two different photographs.','error');return;}
- const selected=[record,other].filter(Boolean).sort((a,b)=>records.indexOf(a)-records.indexOf(b));
- state.historySelections=state.historySelections||{};state.historySelections[skill]={earlier:selected[0].key,later:selected.at(-1).key};
- save();renderPreservingScroll();
+ if(!['earlier','later'].includes(side))return false;
+ const records=historyRecords(skill),record=records.find(record=>record.key===key);if(!record)return false;
+ const pair=historySelection(skill,records);
+ let selected;
+ if(side==='earlier'){
+  if(records.indexOf(record)===records.length-1)return false;
+  selected={earlier:key,later:pair.later&&records.indexOf(pair.later)>records.indexOf(record)?pair.later.key:null};
+ }else{
+  if(!pair.earlier||records.indexOf(record)<=records.indexOf(pair.earlier))return false;
+  selected={earlier:pair.earlier.key,later:key};
+ }
+ state.historySelections=state.historySelections||{};state.historySelections[skill]=selected;
+ save();renderPreservingScroll();return true;
 }
+
 function comparisonRecord(record,side,records=[],other=null){
- const conditions=shootingConditionOptions.find(([value])=>value===record.conditions)?.[1]||(record.conditions==='Study sample'?'Sample capture · conditions not recorded':record.conditions||'Conditions not recorded');
- return `<section class="practice-photo-record">${records.length>1?`<label class="field comparison-photo-select"><span>${side==='earlier'?'Earlier photo':'Later photo'}</span><select name="historyPick:${state.skill||'Lighting'}:${side}" aria-label="Choose ${side} photograph">${records.map(option=>`<option value="${esc(option.key)}" ${record.key===option.key?'selected':''} ${other?.key===option.key?'disabled':''}>${esc(option.label)}</option>`).join('')}</select></label>`:''}${image(record.variant,side==='earlier'?'Earlier photo':side==='later'?'Later photo':record.label)}<div class="practice-record-details"><strong>${esc(record.label)}</strong><time>${esc(captureDate(record))}</time><p class="record-conditions">${esc(conditions)}</p>${record.intention?`<p class="record-intention"><span>Focus</span>${esc(record.intention)}</p>`:''}<div class="record-reflection"><span>Reflection at the time</span><p>${esc(record.reflection||'No reflection recorded.')}</p></div></div></section>`;
+ const conditions=shootingConditionOptions.find(([value])=>value===record?.conditions)?.[1]||(record?.conditions==='Study sample'?'Sample capture · conditions not recorded':record?.conditions||'Conditions not recorded');
+ const first=side==='earlier',firstIndex=other?records.indexOf(other):-1;
+ const chooser=records.length>1?`<label class="field comparison-photo-select"><span>${first?'1 · Earlier photo':'2 · Later photo'}</span><select name="historyPick:${state.skill||'Lighting'}:${side}" aria-label="Choose ${side} photograph" ${!first&&!other?'disabled':''}><option value="" disabled ${!record?'selected':''}>${!first&&!other?'Choose earlier photo first':first?'Choose earlier photo':'Choose later photo'}</option>${records.map((option,index)=>`<option value="${esc(option.key)}" ${record?.key===option.key?'selected':''} ${(first?index===records.length-1:!other||index<=firstIndex)?'disabled':''}>${esc(option.label)}</option>`).join('')}</select></label>`:'';
+ if(!record)return `<section class="practice-photo-record">${chooser}<div class="comparison-photo-empty"><span>${first?'Select an earlier photo':'Select a later photo'}</span></div></section>`;
+ return `<section class="practice-photo-record">${chooser}${image(record.variant,side==='earlier'?'Earlier photo':side==='later'?'Later photo':record.label)}<div class="practice-record-details"><strong>${esc(record.label)}</strong><time>${esc(captureDate(record))}</time><p class="record-conditions">${esc(conditions)}</p>${record.intention?`<p class="record-intention"><span>Focus</span>${esc(record.intention)}</p>`:''}<div class="record-reflection"><span>Reflection at the time</span><p>${esc(record.reflection||'No reflection recorded.')}</p></div></div></section>`;
 }
 function skillHistoryScreen(){
  const skill=state.skill||'Lighting',records=historyRecords(skill),{earlier,later}=historySelection(skill,records);
  const filters=`<div class="comparison-skill-filter" role="group" aria-label="Skill to compare">${comparisonSkills().map(value=>btn(esc(value),'compare-skill:'+value,'chip '+(value===skill?'selected':''),`aria-pressed="${value===skill}"`)).join('')}</div>`;
  const noteKey=earlier&&later?`historyNote:${skill}:${earlier.key}:${later.key}`:'';
- return `${heading('PROGRESS · LOOK ACROSS YOUR PRACTICE','Compare my<br>practice.')}<div class="comparison-skill-heading"><h2>Choose a skill</h2>${filters}</div>${!records.length?card(`<h3>No recorded ${skill.toLowerCase()} attempts yet.</h3><p>Complete a ${skill.toLowerCase()} experiment or challenge to review it here.</p>`,'comparison-empty'):records.length===1?`${comparisonRecord(earlier,'only')}<p class="comparison-hint">One photo so far. Record another ${skill.toLowerCase()} attempt to compare.</p>`:`<p class="comparison-hint">Choose any two photographs. Earlier stays on the left.</p><div class="comparison history-comparison">${comparisonRecord(earlier,'earlier',records,later)}${comparisonRecord(later,'later',records,earlier)}</div>${earlier.conditions!==later.conditions?'<div class="note comparison-conditions-note"><p>The recorded conditions differ. Consider the scene as well as your technique.</p></div>':''}${field('What changed in your approach?',noteKey,state[noteKey]||'','Consider the subject and conditions.','textarea')}${btn('Save reflection','save-reflection','secondary')}`}<div class="push">${btn('Practise '+skill,'history-challenge')}</div>`;
+ return `${heading('LOOK ACROSS YOUR PRACTICE','Compare my<br>practice.')}<div class="comparison-skill-heading"><h2>Choose a skill</h2>${filters}</div>${!records.length?card(`<h3>No recorded ${skill.toLowerCase()} attempts yet.</h3><p>Complete a ${skill.toLowerCase()} experiment or challenge to review it here.</p>`,'comparison-empty'):records.length===1?`${comparisonRecord(earlier,'only')}<p class="comparison-hint">One photo so far. Record another ${skill.toLowerCase()} attempt to compare.</p>`:`<div class="comparison history-comparison">${comparisonRecord(earlier,'earlier',records,later)}${comparisonRecord(later,'later',records,earlier)}</div>${earlier&&later?`${earlier.conditions!==later.conditions?'<div class="note comparison-conditions-note"><p>The recorded conditions differ. Consider the scene as well as your technique.</p></div>':''}${field('What changed in your approach?',noteKey,state[noteKey]||'','Consider the subject and conditions.','textarea')}${btn('Save reflection','save-reflection','secondary')}`:''}`}<div class="push">${btn('Practise '+skill,'history-challenge')}</div>`;
 }
 
 function recordCapture(){
